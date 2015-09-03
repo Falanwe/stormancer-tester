@@ -27,18 +27,20 @@ namespace Tester
         {
             builder.SceneTemplate("tester", scene =>
             {
-                scene.Connected.Add(async peer => {
+                scene.Connected.Add(peer => {
                     long id = peer.Id;
                     scene.Broadcast("id", id);
                     peer.Send("ids", clients.Keys);
                     clients.AddOrUpdate(id, peer, (key, oldValue) => peer);
+                    return Task.FromResult(true);
                 });
 
-                scene.Disconnected.Add(async args => {
+                scene.Disconnected.Add(args => {
                     long id = args.Peer.Id;
                     IScenePeer _;
                     clients.TryRemove(id, out _);
                     scene.Broadcast("di", id);
+                    return Task.FromResult(true);
                 });
 
                 scene.AddRoute("echo", packet =>
@@ -51,7 +53,7 @@ namespace Tester
                     Command cmd = packet.ReadObject<Command>();
                     cmd.senderId = packet.Connection.Id;
 
-                    if (cmd.senderId != null && clients.ContainsKey(cmd.receiverId))
+                    if (clients.ContainsKey(cmd.receiverId))
                     {
                         clients[cmd.receiverId].Send("transfert", cmd, PacketPriority.HIGH_PRIORITY, PacketReliability.RELIABLE_ORDERED);
                     }
@@ -65,12 +67,10 @@ namespace Tester
                     scene.Broadcast("broadcast", cmd, PacketPriority.HIGH_PRIORITY, PacketReliability.RELIABLE_ORDERED);
                 });
 
-                scene.AddProcedure("rpc", async (reqCtx) =>
+                scene.AddProcedure("rpc", (reqCtx) =>
                 {
-                    var length = reqCtx.InputStream.Length;
-                    var data = new byte[length];
-                    reqCtx.InputStream.Read(data, 0, (int)length);
-                    reqCtx.SendValue(data);
+                    reqCtx.SendValue(s => reqCtx.InputStream.CopyTo(s));
+                    return Task.FromResult(true);
                 });
             }, new Dictionary<string, string> { { "description", "Stormancer tester app." } });
         }
