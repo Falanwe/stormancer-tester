@@ -67,9 +67,10 @@ namespace Tester
 
                 scene.AddProcedure("rpc", async (reqCtx) =>
                 {
-                    Command cmd = reqCtx.ReadObject<Command>();
-                    cmd.senderId = cmd.receiverId = reqCtx.RemotePeer.Id;
-                    reqCtx.SendValue<Command>(cmd);
+                    var length = reqCtx.InputStream.Length;
+                    var data = new byte[length];
+                    reqCtx.InputStream.Read(data, 0, (int)length);
+                    reqCtx.SendValue(data);
                 });
             }, new Dictionary<string, string> { { "description", "Stormancer tester app." } });
         }
