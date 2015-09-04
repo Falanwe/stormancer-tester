@@ -70,6 +70,7 @@ namespace Tester
 
                 scene.AddProcedure("rpc", (reqCtx) =>
                 {
+                    scene.GetComponent<ILogger>().Info("rpc", "remote peer routes :" + string.Join(",", reqCtx.RemotePeer.Routes.Select(r => r.Name)));
                     scene.GetComponent<ILogger>().Info("rpc", "rpc request received");
                     var t = new TaskCompletionSource<bool>();
                     reqCtx.RemotePeer.Rpc("rpc", s => reqCtx.InputStream.CopyTo(s)).Subscribe(p =>
