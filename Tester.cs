@@ -72,7 +72,7 @@ namespace Tester
                     var t = new TaskCompletionSource<bool>();
                     reqCtx.RemotePeer.Rpc("rpc", s => reqCtx.InputStream.CopyTo(s)).Subscribe(p =>
                     {
-                        reqCtx.SendValue(s => reqCtx.InputStream.CopyTo(s));
+                        reqCtx.SendValue(s2 => p.Stream.CopyTo(s2));
                         t.SetResult(true);
                     });
                     return t.Task;
