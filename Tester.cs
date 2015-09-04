@@ -69,8 +69,13 @@ namespace Tester
 
                 scene.AddProcedure("rpc", (reqCtx) =>
                 {
-                    reqCtx.SendValue(s => reqCtx.InputStream.CopyTo(s));
-                    return Task.FromResult(true);
+                    var t = new TaskCompletionSource<bool>();
+                    reqCtx.RemotePeer.Rpc("rpc", s => reqCtx.InputStream.CopyTo(s)).Subscribe(p =>
+                    {
+                        reqCtx.SendValue(s => reqCtx.InputStream.CopyTo(s));
+                        t.SetResult(true);
+                    });
+                    return t.Task;
                 });
             }, new Dictionary<string, string> { { "description", "Stormancer tester app." } });
         }
