@@ -2,6 +2,7 @@
 using Stormancer.Core;
 using Stormancer.Diagnostics;
 using Stormancer.Plugins;
+using Stormancer.Server.Components;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -38,6 +39,8 @@ namespace Base
             scene.AddRoute("broadcast", result.OnBroadcast);
 
             scene.AddProcedure("rpc", result.OnRpc);
+
+            scene.AddProcedure("rpcping", result.OnRpcPing);
 
             scene.Shuttingdown.Add(result.OnShutDown);
 
@@ -136,6 +139,12 @@ namespace Base
                 _scene.GetComponent<ILogger>().Info("rpc", "rpc response received");
             }));
 
+            return Task.FromResult(true);
+        }
+
+        private Task OnRpcPing(RequestContext<IScenePeerClient> reqCtx)
+        {
+            reqCtx.SendValue((ulong)_scene.GetComponent<IEnvironment>().Clock);
             return Task.FromResult(true);
         }
 
