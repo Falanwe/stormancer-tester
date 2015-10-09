@@ -90,12 +90,14 @@ namespace Base
             _scene.GetComponent<ILogger>().Info("rpc", "rpc request received");
             var message = reqCtx.ReadObject<string>();
             reqCtx.SendValue(message);
+
+            _scene.GetComponent<ILogger>().Info("rpc", "LAUNCHING ASYNC TASK");
             Task.Run(async () =>
             {
+                _scene.GetComponent<ILogger>().Info("rpc", "ASYNC TASK LAUNCHED");
                 await Task.Delay(1000);
-                var message2 = await reqCtx.RemotePeer.RpcTask<string, string>("rpc", "stormancer");
+                await reqCtx.RemotePeer.RpcTask<string, string>("rpc", "stormancer");
                 _scene.GetComponent<ILogger>().Info("rpc", "rpc response received");
-                reqCtx.RemotePeer.Send("rpc", message2);
             });
             return Task.FromResult(true);
         }
