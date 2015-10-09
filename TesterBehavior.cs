@@ -25,6 +25,8 @@ namespace Base
         {
             var result = new TesterBehavior(scene);
 
+            scene.Starting.Add(result.OnStarting);
+
             scene.Connected.Add(result.OnConnected);
 
             scene.Disconnected.Add(result.OnDisconnected);
@@ -37,7 +39,43 @@ namespace Base
 
             scene.AddProcedure("rpc", result.OnRpc);
 
+            scene.Shuttingdown.Add(result.OnShutDown);
+
             return result;
+        }
+
+        private Task OnStarting(dynamic arg)
+        {
+            _isRunning = true;
+            _queueTask = QueueTaskImpl();
+            return Task.FromResult(true);
+        }
+
+
+        private async Task OnShutDown(ShutdownArgs arg)
+        {
+            _isRunning = false;
+            await _queueTask;
+        }
+
+        private async  Task QueueTaskImpl()
+        {
+            while(_isRunning)
+            {
+                Task t;
+                while(_queue.TryDequeue(out t))
+                {
+                    try
+                    {
+                        await t;
+                    }
+                    catch (Exception ex)
+                    {
+                        _scene.GetComponent<ILogger>().Log(LogLevel.Error, "rpc", "an exception occurred in RPC", ex);
+                    }
+                }
+                await Task.Delay(1000);
+            }
         }
 
         private TesterBehavior(ISceneHost scene)
@@ -91,16 +129,20 @@ namespace Base
             var message = reqCtx.ReadObject<string>();
             reqCtx.SendValue(message);
             
-            Task.Run(async () =>
+            _queue.Enqueue(Task.Run(async () =>
             {
                 await Task.Delay(100);
                 await reqCtx.RemotePeer.RpcTask<string, string>("rpc", "stormancer");
                 _scene.GetComponent<ILogger>().Info("rpc", "rpc response received");
-            });
+            }));
+
             return Task.FromResult(true);
         }
 
         private readonly ISceneHost _scene;
-        private ConcurrentDictionary<long, IScenePeer> _clients = new ConcurrentDictionary<long, IScenePeer>();
+        private readonly ConcurrentDictionary<long, IScenePeer> _clients = new ConcurrentDictionary<long, IScenePeer>();
+        private readonly ConcurrentQueue<Task> _queue = new ConcurrentQueue<Task>();
+        private Task _queueTask;
+        private bool _isRunning = false;
     }
 }
