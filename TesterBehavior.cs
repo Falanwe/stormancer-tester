@@ -129,9 +129,7 @@ namespace Base
         private Task OnRpc(RequestContext<IScenePeerClient> reqCtx)
         {
             _scene.GetComponent<ILogger>().Info("rpc", "rpc request received");
-            var message = reqCtx.ReadObject<string>();
-            reqCtx.SendValue(message);
-            
+            reqCtx.SendValue(s => reqCtx.InputStream.CopyTo(s));
             _queue.Enqueue(Task.Run(async () =>
             {
                 await Task.Delay(100);
