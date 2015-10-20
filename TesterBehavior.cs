@@ -6,6 +6,7 @@ using Stormancer.Server.Components;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -29,17 +30,13 @@ namespace Base
             scene.Starting.Add(result.OnStarting);
 
             scene.Connected.Add(result.OnConnected);
-
             scene.Disconnected.Add(result.OnDisconnected);
 
             scene.AddRoute("echo", result.OnEcho);
-
             scene.AddRoute("transfert", result.OnTransfert);
-
             scene.AddRoute("broadcast", result.OnBroadcast);
 
             scene.AddProcedure("rpc", result.OnRpc);
-
             scene.AddProcedure("rpcping", result.OnRpcPing);
 
             scene.Shuttingdown.Add(result.OnShutDown);
@@ -133,10 +130,9 @@ namespace Base
             _queue.Enqueue(Task.Run(async () =>
             {
                 await Task.Delay(100);
-                await reqCtx.RemotePeer.RpcTask<string, string>("rpc", "stormancer");
+                await reqCtx.RemotePeer.RpcTask("rpc", s => reqCtx.InputStream.CopyTo(s));
                 _scene.GetComponent<ILogger>().Info("rpc", "rpc response received");
             }));
-
             return Task.FromResult(true);
         }
 
@@ -144,6 +140,13 @@ namespace Base
         {
             reqCtx.SendValue((ulong)_scene.GetComponent<IEnvironment>().Clock);
             return Task.FromResult(true);
+        }
+
+        private async Task OnRpcCancel(RequestContext<IScenePeerClient> reqCtx)
+        {
+            _scene.GetComponent<ILogger>().Info("rpc", "Rpc request received on route 'rpccancel'. Waiting 10 seconds for a cancel before returning a response.");
+            await Task.Delay(10000);
+            reqCtx.SendValue("finished");
         }
 
         private readonly ISceneHost _scene;
