@@ -58,12 +58,12 @@ namespace Base
             await _queueTask;
         }
 
-        private async  Task QueueTaskImpl()
+        private async Task QueueTaskImpl()
         {
-            while(_isRunning)
+            while (_isRunning)
             {
                 Task t;
-                while(_queue.TryDequeue(out t))
+                while (_queue.TryDequeue(out t))
                 {
                     try
                     {
@@ -103,7 +103,7 @@ namespace Base
 
         private void OnEcho(Packet<IScenePeerClient> packet)
         {
-            packet.Connection.Send("echo", s => packet.Stream.CopyTo(s, (int)packet.Stream.Length), PacketPriority.HIGH_PRIORITY, PacketReliability.RELIABLE_ORDERED);
+            packet.Connection.Send("echo", s => packet.Stream.CopyTo(s), PacketPriority.MEDIUM_PRIORITY, PacketReliability.RELIABLE_ORDERED);
         }
 
         private void OnTransfert(Packet<IScenePeerClient> packet)
@@ -112,7 +112,7 @@ namespace Base
             cmd.senderId = packet.Connection.Id;
             if (_clients.ContainsKey(cmd.receiverId))
             {
-                _clients[cmd.receiverId].Send("transfert", cmd, PacketPriority.HIGH_PRIORITY, PacketReliability.RELIABLE_ORDERED);
+                _clients[cmd.receiverId].Send("transfert", cmd, PacketPriority.MEDIUM_PRIORITY, PacketReliability.RELIABLE_ORDERED);
             }
         }
 
@@ -120,33 +120,62 @@ namespace Base
         {
             Command cmd = packet.ReadObject<Command>();
             cmd.senderId = packet.Connection.Id;
-            _scene.Broadcast("broadcast", cmd, PacketPriority.HIGH_PRIORITY, PacketReliability.RELIABLE_ORDERED);
+            _scene.Broadcast("broadcast", cmd, PacketPriority.MEDIUM_PRIORITY, PacketReliability.RELIABLE_ORDERED);
         }
 
-        private Task OnRpc(RequestContext<IScenePeerClient> reqCtx)
+        // process the RPC server, send back the data, and start a RPC client
+        private async Task OnRpc(RequestContext<IScenePeerClient> reqCtx)
         {
-            _scene.GetComponent<ILogger>().Info("rpc", "rpc request received");
-            reqCtx.SendValue(s => reqCtx.InputStream.CopyTo(s));
+            _scene.GetComponent<ILogger>().Info("rpc", "RPC request received");
+
+            // copy the RPC data
+            var copyStream = new MemoryStream();
+            reqCtx.InputStream.CopyTo(copyStream);
+            
+            // cancellation
+            reqCtx.CancellationToken.Register(() =>
+            {
+                _scene.GetComponent<ILogger>().Info("rpccancel", "RPC request cancelled for route 'rpc'");
+                reqCtx.RemotePeer.Send("rpcservercancel", s =>
+                {
+                    copyStream.Seek(0, SeekOrigin.Begin);
+                    copyStream.CopyTo(s);
+                }, PacketPriority.MEDIUM_PRIORITY, PacketReliability.RELIABLE_ORDERED);
+            });
+
+            await Task.Delay(1000);
+
+            // if not cancelled, send back the data
+            reqCtx.SendValue(s =>
+            {
+                copyStream.Seek(0, SeekOrigin.Begin);
+                copyStream.CopyTo(s);
+            });
+
+            // create an async task for the RPC client
             _queue.Enqueue(Task.Run(async () =>
             {
                 await Task.Delay(100);
-                await reqCtx.RemotePeer.RpcTask("rpc", s => reqCtx.InputStream.CopyTo(s));
-                _scene.GetComponent<ILogger>().Info("rpc", "rpc response received");
-            }));
-            return Task.FromResult(true);
-        }
+                var observable = reqCtx.RemotePeer.Rpc("rpc", s =>
+                {
+                    copyStream.Seek(0, SeekOrigin.Begin);
+                    copyStream.CopyTo(s);
+                }).Subscribe((p) =>
+                {
+                    _scene.GetComponent<ILogger>().Info("rpc", "RPC response received");
+                });
 
+                if (reqCtx.CancellationToken.IsCancellationRequested)
+                {
+                    observable.Dispose();
+                }
+            }));
+        }
+        
         private Task OnRpcPing(RequestContext<IScenePeerClient> reqCtx)
         {
             reqCtx.SendValue((ulong)_scene.GetComponent<IEnvironment>().Clock);
             return Task.FromResult(true);
-        }
-
-        private async Task OnRpcCancel(RequestContext<IScenePeerClient> reqCtx)
-        {
-            _scene.GetComponent<ILogger>().Info("rpc", "Rpc request received on route 'rpccancel'. Waiting 10 seconds for a cancel before returning a response.");
-            await Task.Delay(10000);
-            reqCtx.SendValue("finished");
         }
 
         private readonly ISceneHost _scene;
