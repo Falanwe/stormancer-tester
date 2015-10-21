@@ -136,7 +136,7 @@ namespace Base
             reqCtx.CancellationToken.Register(() =>
             {
                 _scene.GetComponent<ILogger>().Info("rpccancel", "RPC request cancelled for route 'rpc'");
-                reqCtx.RemotePeer.Send("rpcservercancel", s =>
+                reqCtx.RemotePeer.Send("rpcclientcancel", s =>
                 {
                     copyStream.Seek(0, SeekOrigin.Begin);
                     copyStream.CopyTo(s);
@@ -155,7 +155,7 @@ namespace Base
             // create an async task for the RPC client
             _queue.Enqueue(Task.Run(async () =>
             {
-                await Task.Delay(100);
+                await Task.Delay(1000);
                 var observable = reqCtx.RemotePeer.Rpc("rpc", s =>
                 {
                     copyStream.Seek(0, SeekOrigin.Begin);
