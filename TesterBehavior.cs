@@ -135,8 +135,8 @@ namespace Base
             // cancellation
             reqCtx.CancellationToken.Register(() =>
             {
-                _scene.GetComponent<ILogger>().Info("rpccancel", "RPC request cancelled for route 'rpc'");
-                reqCtx.RemotePeer.Send("rpcclientcancel", s =>
+                _scene.GetComponent<ILogger>().Info("rpcclientcancelled", "RPC request cancelled for route 'rpc'");
+                reqCtx.RemotePeer.Send("rpcclientcancelled", s =>
                 {
                     copyStream.Seek(0, SeekOrigin.Begin);
                     copyStream.CopyTo(s);
